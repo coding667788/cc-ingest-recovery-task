@@ -116,6 +116,14 @@ python -m syncworker --config task/task-config.json --db runtime/crash01.sqlite 
 
 提供架构/事务边界说明、恢复步骤、每个场景的复现方法与已验证/未验证范围。测试不能仅复述实现，也不能靠截图或 success 日志替代实际读取 SQLite 的验证。
 
+### A13：组合故障与同一事务中的坏记录
+
+1. 从 A01 追平状态开始，正常停止业务，保持模拟器运行。执行 poison beta，再 advance all；beta 下一个窗口的第一页包含一个坏 payload 以及有效增量。
+2. 执行 `fault --source alpha --mode throttle --count 3`。启动业务，附加 `--crash-at before_commit --crash-source beta`，在 beta 这一页的事务提交前立即退出。
+3. 崩溃后读取 SQLite：beta 本页的隔离记录、有效变更、applied 和检查点必须一起回滚，不能只回滚业务表。alpha 允许尚未请求或已进入退避；不能把退出前 alpha 是否恰好收到 429 当成确定性条件。
+4. 去掉 crash 参数，以同一数据库重启。beta 在 8 秒内处理这批可用增量，alpha 遵守它实际收到的 Retry-After；beta checkpoint 追平且 degraded，隔离只出现一次，有效商品逐条符合 expected。alpha 最终也追平。
+5. 作答者另提供一个使用明确同步屏障的组合测试：某源重建期间持续有新写入，读者持续读取，在发布前改变 epoch；证明旧代可读、过时代不会发布、最终按有限边界发布新代。测试在内部定义和控制事件顺序，不以固定 sleep 或恰好碰到某时点代替条件。该测试可以使用自建测试替身，不得修改固定 fixtures/ 和 task/。
+
 ## 录屏建议（由人工实际执行后录制）
 
 90 秒以内的视频可展示一条代表性链路：从干净 SQLite 启动→双源首次发布→一次 advance→读结果→停止业务并设置崩溃参数→崩溃后原库重启→读结果。完整验收在录屏前另行执行，短视频不需要塞入全部场景。若启动或恢复失败，也保留失败过程，不剪掉错误。
