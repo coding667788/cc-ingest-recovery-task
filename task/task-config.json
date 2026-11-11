@@ -1,0 +1,10 @@
+{
+  "poll_interval_ms": 200,
+  "request_timeout_ms": 1500,
+  "page_size": 7,
+  "max_concurrency": 4,
+  "sources": [
+    {"name": "alpha", "base_url": "http://127.0.0.1:8765/v1/alpha", "max_concurrency": 2},
+    {"name": "beta", "base_url": "http://127.0.0.1:8765/v1/beta", "max_concurrency": 2}
+  ]
+}
